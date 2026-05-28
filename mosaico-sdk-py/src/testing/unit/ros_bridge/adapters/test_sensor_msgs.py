@@ -21,9 +21,11 @@ from mosaicolabs import (
     Message,
     NMEASentence,
     Point3d,
+    Pressure,
     Quaternion,
     RobotJoint,
     Serializable,
+    Temperature,
     Time,
     Vector2d,
     Vector3d,
@@ -46,11 +48,13 @@ from mosaicolabs.ros_bridge.adapters import (
     NMEASentenceAdapter,
     PointCloudAdapter,
     PointCloudAdapterBase,
+    PressureAdapter,
     RadarAdapter,
     RGBDCameraAdapter,
     RobotJointAdapter,
     ROIAdapter,
     StereoCameraAdapter,
+    TemperatureAdapter,
     ToFCameraAdapter,
 )
 from mosaicolabs.ros_bridge.data_ontology import (
@@ -73,8 +77,10 @@ from testing.unit.ros_bridge.adapters.helper import (
     assert_multiecho_laserscan,
     assert_nmea_sentence,
     assert_pcl2,
+    assert_pressure,
     assert_robot_joint,
     assert_roi,
+    assert_temperature,
 )
 
 ROS_TYPESTORE_TO_TEST = [
@@ -1967,3 +1973,244 @@ class TestMagneticFieldAdapter:
     def test_to_ros_invalid_mosaico_type(self, invalid_ms_msg):
         with pytest.raises(TypeError):
             MagneticFieldAdapter.to_ros(invalid_ms_msg, get_typestore(Stores.LATEST))
+
+
+###############################################################################
+########################## TestTemperatureAdapter #############################
+###############################################################################
+
+
+@pytest.fixture
+def temperature():
+    return Temperature(
+        value=300.0,  # Kelvin
+    )
+
+
+@pytest.fixture
+def temperature_w_var():
+    return Temperature(value=300.0, variance=5.0)
+
+
+@pytest.fixture
+def temperature_msg(temperature):
+    return Message(data=temperature, timestamp_ns=100, frame_id="base_link")
+
+
+@pytest.fixture
+def temperature_rosmsg(ros_header, temperature: Temperature):
+    return ROSMessage(
+        bag_timestamp_ns=100,
+        topic="/temperature",
+        msg_type="sensor_msgs/msg/Temperature",
+        data={
+            "header": ros_header,
+            "temperature": temperature.to_celsius(),
+            "variance": 0.0,
+        },
+    )
+
+
+@pytest.fixture
+def temperature_w_var_rosmsg(ros_header, temperature_w_var: Temperature):
+    return ROSMessage(
+        bag_timestamp_ns=100,
+        topic="/temperature",
+        msg_type="sensor_msgs/msg/Temperature",
+        data={
+            "header": ros_header,
+            "temperature": temperature_w_var.to_celsius(),
+            "variance": temperature_w_var.variance,
+        },
+    )
+
+
+class TestTemperatureAdapter:
+    def test_translate_temperature(self, temperature_rosmsg: ROSMessage):
+        ms_msg = TemperatureAdapter.translate(temperature_rosmsg)
+
+        assert ms_msg.timestamp_ns == temperature_rosmsg.header.stamp.to_nanoseconds()
+        assert_temperature(ms_msg.get_data(Temperature), temperature_rosmsg.data)
+
+    def test_translate_temperature_w_var(self, temperature_w_var_rosmsg: ROSMessage):
+        ms_msg = TemperatureAdapter.translate(temperature_w_var_rosmsg)
+
+        assert (
+            ms_msg.timestamp_ns
+            == temperature_w_var_rosmsg.header.stamp.to_nanoseconds()
+        )
+        assert_temperature(ms_msg.get_data(Temperature), temperature_w_var_rosmsg.data)
+
+    def test_translate_raise_missing_required_key(self, temperature_rosmsg: ROSMessage):
+        data = temperature_rosmsg.data
+        data.pop("temperature")
+        with pytest.raises(ValueError):
+            TemperatureAdapter.from_dict(data)
+
+    @pytest.mark.parametrize("typestore", ROS_TYPESTORE_TO_TEST)
+    def test_to_ros_temperature(self, temperature: Temperature, typestore: Typestore):
+        ros_msg = TemperatureAdapter.to_ros(
+            temperature, typestore, "sensor_msgs/msg/Temperature"
+        )
+        assert_temperature(temperature, asdict(ros_msg))
+
+    @pytest.mark.parametrize("typestore", ROS_TYPESTORE_TO_TEST)
+    def test_to_ros_temperature_w_var(
+        self, temperature_w_var: Temperature, typestore: Typestore
+    ):
+        ros_msg = TemperatureAdapter.to_ros(
+            temperature_w_var, typestore, "sensor_msgs/msg/Temperature"
+        )
+        assert_temperature(temperature_w_var, asdict(ros_msg))
+
+    @pytest.mark.parametrize("typestore", ROS_TYPESTORE_TO_TEST)
+    def test_to_ros_temperature_message(
+        self, temperature_msg: Message, typestore: Typestore
+    ):
+        temperature = temperature_msg.get_data(Temperature)
+        ros_msg = TemperatureAdapter.to_ros(
+            temperature_msg, typestore, "sensor_msgs/msg/Temperature"
+        )
+        assert temperature_msg.frame_id == ros_msg.header.frame_id
+        assert (
+            temperature_msg.timestamp_ns
+            == Time(
+                seconds=ros_msg.header.stamp.sec,
+                nanoseconds=ros_msg.header.stamp.nanosec,
+            ).to_nanoseconds()
+        )
+        assert_temperature(temperature, asdict(ros_msg))
+
+    @pytest.mark.parametrize("typestore", ROS_TYPESTORE_TO_TEST)
+    def test_to_ros_default_type(self, temperature: Temperature, typestore: Typestore):
+        ros_msg = TemperatureAdapter.to_ros(temperature, typestore)
+        assert_temperature(temperature, asdict(ros_msg))
+
+    def test_to_ros_invalid_rosmsg_type(self, temperature: Temperature):
+        ros_msg = TemperatureAdapter.to_ros(
+            temperature, get_typestore(Stores.LATEST), "sensor_msgs/msg/Bogus"
+        )
+        assert ros_msg is None
+
+    def test_to_ros_invalid_mosaico_type(self, invalid_ms_msg):
+        with pytest.raises(TypeError):
+            TemperatureAdapter.to_ros(invalid_ms_msg, get_typestore(Stores.LATEST))
+
+
+###############################################################################
+########################## TestPressureAdapter #############################
+###############################################################################
+
+
+@pytest.fixture
+def pressure():
+    return Pressure(
+        value=300.0,  # Pascal
+    )
+
+
+@pytest.fixture
+def pressure_w_var():
+    return Pressure(value=300.0, variance=5.0)
+
+
+@pytest.fixture
+def pressure_msg(pressure):
+    return Message(data=pressure, timestamp_ns=100, frame_id="base_link")
+
+
+@pytest.fixture
+def pressure_rosmsg(ros_header, pressure: Pressure):
+    return ROSMessage(
+        bag_timestamp_ns=100,
+        topic="/pressure",
+        msg_type="sensor_msgs/msg/FluidPressure",
+        data={
+            "header": ros_header,
+            "fluid_pressure": pressure.value,
+            "variance": 0.0,
+        },
+    )
+
+
+@pytest.fixture
+def pressure_w_var_rosmsg(ros_header, pressure_w_var: Pressure):
+    return ROSMessage(
+        bag_timestamp_ns=100,
+        topic="/pressure",
+        msg_type="sensor_msgs/msg/FluidPressure",
+        data={
+            "header": ros_header,
+            "fluid_pressure": pressure_w_var.value,
+            "variance": pressure_w_var.variance,
+        },
+    )
+
+
+class TestpressureAdapter:
+    def test_translate_pressure(self, pressure_rosmsg: ROSMessage):
+        ms_msg = PressureAdapter.translate(pressure_rosmsg)
+
+        assert ms_msg.timestamp_ns == pressure_rosmsg.header.stamp.to_nanoseconds()
+        assert_pressure(ms_msg.get_data(Pressure), pressure_rosmsg.data)
+
+    def test_translate_pressure_w_var(self, pressure_w_var_rosmsg: ROSMessage):
+        ms_msg = PressureAdapter.translate(pressure_w_var_rosmsg)
+
+        assert (
+            ms_msg.timestamp_ns == pressure_w_var_rosmsg.header.stamp.to_nanoseconds()
+        )
+        assert_pressure(ms_msg.get_data(Pressure), pressure_w_var_rosmsg.data)
+
+    def test_translate_raise_missing_required_key(self, pressure_rosmsg: ROSMessage):
+        data = pressure_rosmsg.data
+        data.pop("fluid_pressure")
+        with pytest.raises(ValueError):
+            PressureAdapter.from_dict(data)
+
+    @pytest.mark.parametrize("typestore", ROS_TYPESTORE_TO_TEST)
+    def test_to_ros_pressure(self, pressure: pressure, typestore: Typestore):
+        ros_msg = PressureAdapter.to_ros(
+            pressure, typestore, "sensor_msgs/msg/FluidPressure"
+        )
+        assert_pressure(pressure, asdict(ros_msg))
+
+    @pytest.mark.parametrize("typestore", ROS_TYPESTORE_TO_TEST)
+    def test_to_ros_pressure_w_var(
+        self, pressure_w_var: pressure, typestore: Typestore
+    ):
+        ros_msg = PressureAdapter.to_ros(
+            pressure_w_var, typestore, "sensor_msgs/msg/FluidPressure"
+        )
+        assert_pressure(pressure_w_var, asdict(ros_msg))
+
+    @pytest.mark.parametrize("typestore", ROS_TYPESTORE_TO_TEST)
+    def test_to_ros_pressure_message(self, pressure_msg: Message, typestore: Typestore):
+        pressure = pressure_msg.get_data(Pressure)
+        ros_msg = PressureAdapter.to_ros(
+            pressure_msg, typestore, "sensor_msgs/msg/FluidPressure"
+        )
+        assert pressure_msg.frame_id == ros_msg.header.frame_id
+        assert (
+            pressure_msg.timestamp_ns
+            == Time(
+                seconds=ros_msg.header.stamp.sec,
+                nanoseconds=ros_msg.header.stamp.nanosec,
+            ).to_nanoseconds()
+        )
+        assert_pressure(pressure, asdict(ros_msg))
+
+    @pytest.mark.parametrize("typestore", ROS_TYPESTORE_TO_TEST)
+    def test_to_ros_default_type(self, pressure: pressure, typestore: Typestore):
+        ros_msg = PressureAdapter.to_ros(pressure, typestore)
+        assert_pressure(pressure, asdict(ros_msg))
+
+    def test_to_ros_invalid_rosmsg_type(self, pressure: pressure):
+        ros_msg = PressureAdapter.to_ros(
+            pressure, get_typestore(Stores.LATEST), "sensor_msgs/msg/Bogus"
+        )
+        assert ros_msg is None
+
+    def test_to_ros_invalid_mosaico_type(self, invalid_ms_msg):
+        with pytest.raises(TypeError):
+            TemperatureAdapter.to_ros(invalid_ms_msg, get_typestore(Stores.LATEST))

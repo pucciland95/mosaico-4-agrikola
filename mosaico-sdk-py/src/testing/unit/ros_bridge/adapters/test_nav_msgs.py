@@ -7,14 +7,13 @@ from mosaicolabs import (
     Message,
     MotionState,
     Pose,
+    RobotPath,
     Time,
     Velocity,
 )
-from mosaicolabs.ros_bridge.adapters import (
-    OdometryAdapter,
-)
+from mosaicolabs.ros_bridge.adapters import OdometryAdapter, RobotPathAdapter
 from mosaicolabs.ros_bridge.ros_message import ROSMessage
-from testing.unit.ros_bridge.adapters.helper import assert_motion_state
+from testing.unit.ros_bridge.adapters.helper import assert_motion_state, assert_path
 
 ROS_TYPESTORE_TO_TEST = [
     get_typestore(Stores.LATEST),
@@ -146,3 +145,95 @@ class TestOdometryAdapter:
     def test_to_ros_invalid_mosaico_type(self, invalid_ms_msg):
         with pytest.raises(TypeError):
             OdometryAdapter.to_ros(invalid_ms_msg, get_typestore(Stores.LATEST))
+
+
+###############################################################################
+############################ TestRobotPathAdapter #############################
+###############################################################################
+
+
+@pytest.fixture
+def robot_path(pose):
+    return RobotPath(
+        path_frame="base_link",
+        poses=[pose, pose, pose],
+    )
+
+
+@pytest.fixture
+def path_rosmsg(ros_header, robot_path: RobotPath):
+    return ROSMessage(
+        bag_timestamp_ns=100,
+        topic="/path",
+        msg_type="nav_msgs/msg/Path",
+        data={
+            "header": ros_header,
+            "poses": [
+                {
+                    "header": ros_header,
+                    "pose": pose.model_dump(exclude={"covariance", "covariance_type"})
+                }
+                for pose in robot_path.poses
+            ],
+        },
+    )
+
+
+@pytest.fixture
+def path_msg(robot_path):
+    return Message(
+        data=robot_path,
+        timestamp_ns=100,
+        frame_id="base_link",
+    )
+
+
+class TestRobotPathAdapter:
+    def test_translate_path(self, path_rosmsg: ROSMessage):
+        ms_msg = RobotPathAdapter.translate(path_rosmsg)
+
+        assert ms_msg.timestamp_ns == path_rosmsg.header.stamp.to_nanoseconds()
+        assert_path(ms_msg.get_data(RobotPath), path_rosmsg.data)
+
+    def test_translate_raise_missing_required_key(self, path_rosmsg: ROSMessage):
+        data = path_rosmsg.data
+        data.pop("poses")
+        with pytest.raises(ValueError):
+            RobotPathAdapter.from_dict(data)
+
+    @pytest.mark.parametrize("typestore", ROS_TYPESTORE_TO_TEST)
+    def test_to_ros_path(self, robot_path: RobotPath, typestore: Typestore):
+        ros_msg = RobotPathAdapter.to_ros(robot_path, typestore, "nav_msgs/msg/Path")
+        assert_path(robot_path, asdict(ros_msg))
+
+    @pytest.mark.parametrize("typestore", ROS_TYPESTORE_TO_TEST)
+    def test_to_ros_path_message(self, path_msg: Message, typestore: Typestore):
+        path = path_msg.get_data(RobotPath)
+        ros_msg = RobotPathAdapter.to_ros(path_msg, typestore, "nav_msgs/msg/Path")
+
+        assert (
+            path_msg.timestamp_ns
+            == Time(
+                seconds=ros_msg.header.stamp.sec,
+                nanoseconds=ros_msg.header.stamp.nanosec,
+            ).to_nanoseconds()
+        )
+        assert path_msg.frame_id == ros_msg.header.frame_id
+        assert_path(path, asdict(ros_msg))
+
+    @pytest.mark.parametrize("typestore", ROS_TYPESTORE_TO_TEST)
+    def test_to_ros_default_type(self, robot_path: RobotPath, typestore: Typestore):
+        ros_msg = RobotPathAdapter.to_ros(robot_path, typestore)
+
+        assert_path(robot_path, asdict(ros_msg))
+
+    def test_to_ros_invalid_rosmsg_type(self, robot_path: RobotPath):
+        ros_msg = RobotPathAdapter.to_ros(
+            robot_path, get_typestore(Stores.LATEST), "nav_msgs/msg/Bogus"
+        )
+
+        assert ros_msg is None
+
+    def test_to_ros_invalid_mosaico_type(self, invalid_ms_msg):
+        with pytest.raises(TypeError):
+            RobotPathAdapter.to_ros(invalid_ms_msg, get_typestore(Stores.LATEST))

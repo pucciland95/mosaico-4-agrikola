@@ -78,6 +78,7 @@ from .models.data import (
     Integer64 as Integer64,
     LargeString as LargeString,
     MotionState as MotionState,
+    RobotPath as RobotPath,
     Point2d as Point2d,
     Point3d as Point3d,
     Polygon as Polygon,

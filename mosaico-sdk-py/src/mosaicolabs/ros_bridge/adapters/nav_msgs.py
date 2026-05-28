@@ -6,7 +6,7 @@ if TYPE_CHECKING:
     from rosbags.typesys.store import MsgType
 
 from mosaicolabs.models import Message
-from mosaicolabs.models.data import MotionState
+from mosaicolabs.models.data import MotionState, RobotPath
 
 from ..adapter_base import ROSAdapterBase
 from ..ros_bridge import register_default_adapter
@@ -160,6 +160,181 @@ class OdometryAdapter(ROSAdapterBase[MotionState]):
                     typestore,
                     "geometry_msgs/msg/TwistWithCovariance",
                 ),
+            )
+
+        return None
+
+    @classmethod
+    def schema_metadata(cls, ros_data: dict, **kwargs: Any) -> Optional[dict]:
+        """
+        Extract the ROS message specific schema metadata, if any.
+        """
+        return None
+
+
+@register_default_adapter(is_default=True)
+class RobotPathAdapter(ROSAdapterBase[RobotPath]):
+    """
+    Adapter for translating ROS Path messages to Mosaico `RobotPath`.
+
+    **Supported ROS Types:**
+
+    - [`nav_msgs/msg/Path`](https://docs.ros2.org/foxy/api/nav_msgs/msg/Path.html)
+
+    Example:
+        ```python
+        ros_msg = ROSMessage(
+            timestamp=17000,
+            topic="/path",
+            msg_type="nav_msgs/msg/Path",
+            data=
+            {
+                "header": {"frame_id": "map", "stamp": {"sec": 17000, "nanosec": 0}},
+                "poses":[
+                    {
+                        "header": {"frame_id": "base_link", "stamp": {"sec": 17000, "nanosec": 0}},
+                        "position": {"x": 1.0, "y": 2.0, "z": 0.0},
+                        "orientation": {"x": 0, "y": 0, "z": 0, "w": 1}
+                    },
+                    {
+                        "header": {"frame_id": "base_link", "stamp": {"sec": 18000, "nanosec": 0}},
+                        "position": {"x": 2.0, "y": 3.0, "z": 0.0},
+                        "orientation": {"x": 0, "y": 0, "z": 0, "w": 1}
+                    },
+                    {
+                        "header": {"frame_id": "base_link", "stamp": {"sec": 19000, "nanosec": 0}},
+                        "position": {"x": 3.0, "y": 4.0, "z": 0.0},
+                        "orientation": {"x": 0, "y": 0, "z": 0, "w": 1}
+                    }
+                ]
+            }
+        )
+        # Automatically resolves to a Mosaico RobotPath with attached metadata
+        mosaico_path = RobotPathAdapter.translate(ros_msg)
+        ```
+    """
+
+    ros_msgtype: str | Tuple[str, ...] = "nav_msgs/msg/Path"
+
+    __mosaico_ontology_type__: Type[RobotPath] = RobotPath
+    _REQUIRED_KEYS = ("poses",)
+
+    @classmethod
+    def translate(
+        cls,
+        ros_msg: ROSMessage,
+        **kwargs: Any,
+    ) -> Message:
+        """
+        Translates a ROS message into a Mosaico Message.
+
+        Returns:
+            Message: The translated message containing a `RobotPath` object.
+
+        Raises:
+            Exception: Wraps any translation error with context (topic name, timestamp).
+        """
+        return super().translate(ros_msg, **kwargs)
+
+    @classmethod
+    def from_dict(cls, ros_data: dict) -> RobotPath:
+        """
+        Parses a dictionary to extract a `RobotPath` object.
+
+        Example:
+            ```python
+            ros_data=
+            {
+                "header": {"frame_id": "map", "stamp": {"sec": 17000, "nanosec": 0}},
+                "poses":[
+                    {
+                        "header": {"frame_id": "base_link", "stamp": {"sec": 17000, "nanosec": 0}},
+                        "position": {"x": 1.0, "y": 2.0, "z": 0.0},
+                        "orientation": {"x": 0, "y": 0, "z": 0, "w": 1}
+                    },
+                    {
+                        "header": {"frame_id": "base_link", "stamp": {"sec": 18000, "nanosec": 0}},
+                        "position": {"x": 2.0, "y": 3.0, "z": 0.0},
+                        "orientation": {"x": 0, "y": 0, "z": 0, "w": 1}
+                    },
+                    {
+                        "header": {"frame_id": "base_link", "stamp": {"sec": 19000, "nanosec": 0}},
+                        "position": {"x": 3.0, "y": 4.0, "z": 0.0},
+                        "orientation": {"x": 0, "y": 0, "z": 0, "w": 1}
+                    }
+                ]
+            }
+            # Automatically resolves to a Mosaico RobotPath with attached metadata
+            mosaico_robot_path = RobotPathAdapter.from_dict(ros_data)
+            ```
+
+        Args:
+            ros_data (dict): The raw dictionary from the ROS message.
+
+        Returns:
+            RobotPath: The constructed Mosaico RobotPath object.
+
+        Raises:
+            ValueError: If the 'poses' key exists but is not a list, or if required keys are missing.
+        """
+        _validate_msgdata(cls, ros_data)
+
+        poses = ros_data["poses"]
+        if not isinstance(poses, list):
+            raise ValueError(
+                f"Invalid type for 'poses' value in ros message: expected 'list' found '{type(poses).__name__}'"
+            )
+
+        return RobotPath(
+            path_frame=ros_data["header"]["frame_id"],
+            poses=[PoseAdapter.from_dict(ros_pose) for ros_pose in poses],
+        )
+
+    @classmethod
+    def to_ros(
+        cls,
+        mosaico_data: Union[Message, RobotPath],
+        typestore: Typestore,
+        input_ros_msg_type: Optional[str] = None,
+    ) -> "Optional[MsgType]":
+        """
+        Converts a Mosaico ``RobotPath`` (or a ``Message`` wrapping one) into a
+        ``nav_msgs/msg/Path`` message.
+
+        Args:
+            mosaico_data: A ``Message`` wrapping a ``RobotPath`` instance, or a raw ``RobotPath``.
+            typestore: The rosbags typestore for target type resolution.
+            input_ros_msg_type: Override for the output ROS type. Only
+                ``nav_msgs/msg/Path`` is supported.
+
+        Returns:
+            A ``nav_msgs/msg/Path`` instance, or ``None`` if the type is
+            unsupported or absent from the typestore.
+        """
+
+        # Resolve ROS message to translate Mosaico message to if not defined in input
+        resolved_rosmsg_type = input_ros_msg_type or cls.get_default_ros_msg()
+        if not cls.is_rosmsg_type_valid(resolved_rosmsg_type):
+            return None
+
+        # Checking presence in typestore of requested message
+        if typestore.types.get(resolved_rosmsg_type) is None:
+            return None
+
+        # Unpacking Mosaico message / type
+        path_data, header_ms = cls.unpack_mosaico_msg(mosaico_data)
+        header_ms.frame_id = path_data.path_frame
+
+        # Filling the data
+        RosPath = typestore.types["nav_msgs/msg/Path"]
+
+        if resolved_rosmsg_type == "nav_msgs/msg/Path":
+            return RosPath(
+                header=header_ms.to_ros(typestore),
+                poses=[
+                    PoseAdapter.to_ros(pose, typestore, "geometry_msgs/msg/PoseStamped")
+                    for pose in path_data.poses
+                ],
             )
 
         return None

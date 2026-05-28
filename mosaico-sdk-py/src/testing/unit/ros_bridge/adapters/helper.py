@@ -21,11 +21,14 @@ from mosaicolabs import (
     Polygon,
     Pose,
     Quaternion,
+    RobotPath,
+    Pressure,
     RobotJoint,
     Transform,
     Vector2d,
     Vector3d,
     Velocity,
+    Temperature,
     futures,
 )
 from mosaicolabs.ros_bridge.data_ontology import (
@@ -355,3 +358,32 @@ def assert_frame_transform(frame_trasform: FrameTransform, ros_msg):
         # assert mosaico_transform.source_frame_id == ros_transform.header.frame_id # TODO
         assert mosaico_transform.target_frame_id == ros_transform["child_frame_id"]
         assert_transform(mosaico_transform, ros_transform["transform"])
+
+
+def assert_temperature(temperature: Temperature, ros_msg):
+
+    assert temperature.to_celsius() == ros_msg["temperature"]
+
+    if temperature.variance is not None:
+        assert temperature.variance == ros_msg["variance"]
+    else:
+        assert ros_msg["variance"] == 0
+
+
+def assert_pressure(pressure: Pressure, ros_msg):
+
+    assert pressure.value == ros_msg["fluid_pressure"]
+
+    if pressure.variance is not None:
+        assert pressure.variance == ros_msg["variance"]
+    else:
+        assert ros_msg["variance"] == 0
+
+
+def assert_path(path: RobotPath, ros_msg):
+
+    assert path.path_frame == ros_msg["header"]["frame_id"]
+
+    for pose, pose_stamped_ros in zip(path.poses, ros_msg["poses"]):
+        assert_pose(pose, pose_stamped_ros["pose"])
+

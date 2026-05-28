@@ -13,6 +13,7 @@ from .geometry_msgs import (
 )
 from .nav_msgs import (
     OdometryAdapter as OdometryAdapter,
+    RobotPathAdapter as RobotPathAdapter,
 )
 from .override_msgs import (
     LidarAdapter as LidarAdapter,
@@ -36,7 +37,9 @@ from .sensor_msgs import (
     NMEASentenceAdapter as NMEASentenceAdapter,
     PointCloudAdapter as PointCloudAdapter,
     PointCloudAdapterBase as PointCloudAdapterBase,
+    PressureAdapter as PressureAdapter,
     RobotJointAdapter as RobotJointAdapter,
     ROIAdapter as ROIAdapter,
+    TemperatureAdapter as TemperatureAdapter,
 )
 from .tf2_msgs import FrameTransformAdapter as FrameTransformAdapter

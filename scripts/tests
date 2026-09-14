@@ -237,7 +237,7 @@ run_full_stack_tests() {
     echo "Starting mosaicod as background service (pid ${MOSAICOD_PID})"
     echo "mosaicod logs can be found in ${DIM}${MOSAICOD_OUTPUT}${RESET}"
     echo "Waiting starver to startup ..."
-    sleep 1
+    sleep 10
 
     # Run full-stack tests
     title "running full-stack tests" "." "${BLUE}"

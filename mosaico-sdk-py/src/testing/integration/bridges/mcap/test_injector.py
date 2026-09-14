@@ -16,8 +16,7 @@ def create_mcap_injection_config(
     )
 
 
-# TODO: FIX THIS
-def _test_mcap_injection_succeds(
+def test_mcap_injection_succeds(
     mcap_protobuf_file, mcap_jsonschema_file, mcap_mixed_file, mosaico_client
 ):
     """Tests that the whole ingestion pipeline works using all available sample mcap files"""

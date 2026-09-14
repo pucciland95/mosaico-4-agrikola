@@ -11,7 +11,9 @@ on:
       - "**/pyproject.toml"
       - "**/poetry.lock"
   pull_request:
-    branches: ["main"]
+    branches: 
+      - "main"
+      - 'issue/**'
     paths:
       - "**.rs"
       - "**.py"
